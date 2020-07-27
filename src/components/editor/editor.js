@@ -32,7 +32,7 @@ export default class Editor extends Component {
             function reqursy(element) {
                 element.childNodes.forEach(node => {
                     if(node.nodeName === '#text' && node.nodeValue.replace(/\s+/g, "").length > 0) {
-                        textNode.push(node); // выделение всех текстовых узлов и добавление их в массив
+                        textNode.push(node); // выделение всех текстовых узлов длинной больше 0 и добавление их в массив
                     } else {
                         reqursy(node); // если нет текстового узла, углубляемся на тег ниже
                     }
