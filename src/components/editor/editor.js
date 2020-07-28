@@ -1,5 +1,8 @@
 import '../../helpers/iframeLoader.js';
 import React, { Component } from 'react';
+import DOMHelper from '../../helpers/dom-helper';
+import EditorText from '../editor-text';
+
 import axios from 'axios';
 
 export default class Editor extends Component {
@@ -28,81 +31,49 @@ export default class Editor extends Component {
 
         axios
             .get(`../${page}?rnd=${Math.random()}`)
-            .then(res => this.parseStrToDOM(res.data)) // преображение текста в dom html
-            .then(this.wrapTextNodes)   // выделение текстовых узлов и обёртка тегом text-editor
+            .then(res => DOMHelper.parseStrToDOM(res.data)) // преображение текста в dom html
+            .then(DOMHelper.wrapTextNodes)   // выделение текстовых узлов и обёртка тегом text-editor
             .then(dom => {              // копия dom virtualDOM
                 this.virtualDOM = dom;
                 return dom; 
             })
-            .then(this.serializeDOMToString)    // конвертация dom дерева в текст
+            .then(DOMHelper.serializeDOMToString)    // конвертация dom дерева в текст
             .then(html => axios.post('./api/saveTempPage.php', {html}))     // отправим запрос с html для создания новой страницы (страницы редактирования)
             .then(() => this.iframe.load("../temp.html"))    // загрузка страницы редактирования
             .then(() => this.enableEditing()) // включение редактирования и синхронизация с готовой страницей
-            
+            .then(() => this.injectStyles())
     }
 
     save() {
-        const newDom = this.virtualDOM.cloneNode(this.virtualDOM);
-        this.unwrapTextNodes(newDom);
-        const html = this.serializeDOMToString(newDom);
+        const newDom = this.virtualDOM.cloneNode(this.virtualDOM);  // копия dom дерева
+        DOMHelper.unwrapTextNodes(newDom);                               // развернем текс из обертки
+        const html = DOMHelper.serializeDOMToString(newDom);             // преобразим в строку
         axios
-            .post("api/savePage.php", {pageName: this.currentPage, html})
+            .post("api/savePage.php", {pageName: this.currentPage, html}) // отправим на сервер
     }
 
     enableEditing() {
         this.iframe.contentDocument.body.querySelectorAll("text-editor").forEach(elem => {
-            elem.contentEditable = 'true'; // для всех тегов text-editor включим редактирование элемента
-            elem.addEventListener("input", () => {
-                this.onTextEdit(elem);
-            });
+            const id = elem.getAttribute('nodeid');
+            const virtualElem = this.virtualDOM.body.querySelector(`[nodeid="${id}"]`);
+
+            new EditorText(elem, virtualElem);
         })
     }
 
-    onTextEdit(elem) { // по атрибуту nodeid перенесем данные в основную страницу 
-        const id = elem.getAttribute('nodeid');
-        this.virtualDOM.body.querySelector(`[nodeid="${id}"]`).innerHTML = elem.innerHTML;
-    }
-
-    serializeDOMToString(dom) { // преобразим html код в текст
-        const serializer = new XMLSerializer();
-        return serializer.serializeToString(dom);
-    }
-
-    parseStrToDOM(str) { // преобразим текст в html код
-        const parser = new DOMParser();
-        return parser.parseFromString(str, 'text/html');
-    }
-
-    wrapTextNodes(dom) {
-        const body = dom.body;
-        const textNode = [];
-
-        function reqursy(element) {
-            element.childNodes.forEach(node => {
-                if(node.nodeName === '#text' && node.nodeValue.replace(/\s+/g, "").length > 0) {
-                    textNode.push(node); // выделение всех текстовых узлов длинной больше 0 и добавление их в массив
-                } else {
-                    reqursy(node); // если нет текстового узла, углубляемся на тег ниже
-                }
-            });
-        }
-
-        reqursy(body);
-
-        textNode.forEach((node, i) => {
-            const wrapper = dom.createElement('text-editor'); // создание собственного тега
-            node.parentNode.replaceChild(wrapper, node); // добавление тега и удаление node (текста)
-            wrapper.appendChild(node); // поместим текст внутрь нового тега
-            wrapper.setAttribute('nodeid', i);
-        })
-
-        return dom;
-    }
-
-    unwrapTextNodes(dom) {
-        dom.body.querySelectorAll("text-editor").forEach(elem => {
-            elem.parentNode.replaceChild(elem.firstChild, elem);
-        });
+    injectStyles() {
+        const style = this.iframe.contentDocument.createElement("style");
+        style.innerHTML = `
+            text-editor:hover {
+                outline: 3px solid orange;
+                outline-offset: 8px;
+            }
+            text-editor:focus {
+                outline: 3px solid red;
+                outline-offset: 8px;
+            }
+        `;
+        this.iframe.contentDocument.head.appendChild(style);
     }
 
     loadPageList() {
