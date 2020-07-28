@@ -3,6 +3,7 @@ import React, { Component } from 'react';
 import DOMHelper from '../../helpers/dom-helper';
 import EditorText from '../editor-text';
 
+import UIkit from 'uikit';
 import axios from 'axios';
 
 export default class Editor extends Component {
@@ -44,12 +45,14 @@ export default class Editor extends Component {
             .then(() => this.injectStyles())
     }
 
-    save() {
+    save(onSuccess, onError) {
         const newDom = this.virtualDOM.cloneNode(this.virtualDOM);  // копия dom дерева
         DOMHelper.unwrapTextNodes(newDom);                               // развернем текс из обертки
         const html = DOMHelper.serializeDOMToString(newDom);             // преобразим в строку
         axios
             .post("api/savePage.php", {pageName: this.currentPage, html}) // отправим на сервер
+            .then(onSuccess)
+            .catch(onError)
     }
 
     enableEditing() {
@@ -97,11 +100,33 @@ export default class Editor extends Component {
     }
 
     render() {
+        const modal = true;
         
         return (
             <>
-                <button onClick={() => this.save()}>Save</button>
                 <iframe src={this.currentPage} frameBorder="0"></iframe>
+
+                <div className="panel">
+                    <button className="uk-button uk-button-primary" uk-toggle="target: #modal-save" >Опубликовать</button>
+                </div>
+
+                <div id="modal-save" uk-modal={modal.toString()}>
+                    <div className="uk-modal-dialog uk-modal-body">
+                        <h2 className="uk-modal-title">Сохранение</h2>
+                        <p>Вы действительно хотите опубликовать изменения ?</p>
+                        <button className="uk-button uk-modal-close" type="button">Отмена</button>
+                        <button 
+                            className="uk-button uk-button-primary" 
+                            type="button"
+                            onClick={() => this.save(() => {
+                                UIkit.notification({message: "Успешно сохранено", status: 'success'})
+                            },
+                            () => {
+                                UIkit.notification({message: "Ошибка сохранения", status: 'danger'})
+                            })} >
+                            Опубликовать</button>
+                    </div>
+                </div>
             </>
         )
     }
