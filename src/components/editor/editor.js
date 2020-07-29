@@ -2,6 +2,7 @@ import '../../helpers/iframeLoader.js';
 import React, { Component } from 'react';
 import DOMHelper from '../../helpers/dom-helper';
 import EditorText from '../editor-text';
+import Spinner from '../spinner';
 
 import UIkit from 'uikit';
 import axios from 'axios';
@@ -12,9 +13,12 @@ export default class Editor extends Component {
         this.currentPage = "index.html";
         this.state = {
             pageList: [],
-            newPageName: ""
+            newPageName: "",
+            loading: true
         }
         this.createNewPage = this.createNewPage.bind(this);
+        this.isLoading = this.isLoading.bind(this);
+        this.isLoaded = this.isLoaded.bind(this);
     }
 
     componentDidMount() { 
@@ -23,11 +27,11 @@ export default class Editor extends Component {
 
     init(page) {
         this.iframe = document.querySelector('iframe');
-        this.open(page);
+        this.open(page, this.isLoaded);
         //this.loadPageList(); // error request
     }
 
-    open(page) {
+    open(page, cb) {
         this.currentPage = page; // рандомный параметр для избежание кэширования
 
         axios
@@ -43,9 +47,11 @@ export default class Editor extends Component {
             .then(() => this.iframe.load("../temp.html"))    // загрузка страницы редактирования
             .then(() => this.enableEditing()) // включение редактирования и синхронизация с готовой страницей
             .then(() => this.injectStyles())
+            .then(cb)
     }
 
     save(onSuccess, onError) {
+        this.isLoading();
         const newDom = this.virtualDOM.cloneNode(this.virtualDOM);  // копия dom дерева
         DOMHelper.unwrapTextNodes(newDom);                               // развернем текс из обертки
         const html = DOMHelper.serializeDOMToString(newDom);             // преобразим в строку
@@ -53,6 +59,7 @@ export default class Editor extends Component {
             .post("api/savePage.php", {pageName: this.currentPage, html}) // отправим на сервер
             .then(onSuccess)
             .catch(onError)
+            .finally(this.isLoaded)
     }
 
     enableEditing() {
@@ -79,6 +86,18 @@ export default class Editor extends Component {
         this.iframe.contentDocument.head.appendChild(style);
     }
 
+    isLoading() {
+        this.setState({
+            loading: true
+        })
+    }
+
+    isLoaded() {
+        this.setState({
+            loading: false
+        })
+    }
+
     loadPageList() {
         axios
             .get("/api")
@@ -100,11 +119,18 @@ export default class Editor extends Component {
     }
 
     render() {
+        const loading = this.state.loading;
         const modal = true;
         
+        let spinner;
+
+        loading ? spinner = <Spinner active/> : spinner = <Spinner /> 
+
         return (
             <>
                 <iframe src={this.currentPage} frameBorder="0"></iframe>
+
+                {spinner}
 
                 <div className="panel">
                     <button className="uk-button uk-button-primary" uk-toggle="target: #modal-save" >Опубликовать</button>
