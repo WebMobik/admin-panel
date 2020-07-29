@@ -22,16 +22,21 @@ export default class Editor extends Component {
         this.isLoading = this.isLoading.bind(this);
         this.isLoaded = this.isLoaded.bind(this);
         this.save = this.save.bind(this);
+        this.init = this.init.bind(this);
     }
 
     componentDidMount() { 
-        this.init(this.currentPage);
+        this.init(null, this.currentPage);
     }
 
-    init(page) {
+    init(e, page) {
+        if(e) {
+            e.preventDefault();
+        }
+        this.isLoading();
         this.iframe = document.querySelector('iframe');
         this.open(page, this.isLoaded);
-        //this.loadPageList(); // error request
+        this.loadPageList();    // загрузка списка страниц
     }
 
     open(page, cb) {
@@ -47,7 +52,8 @@ export default class Editor extends Component {
             })
             .then(DOMHelper.serializeDOMToString)    // конвертация dom дерева в текст
             .then(html => axios.post('./api/saveTempPage.php', {html}))     // отправим запрос с html для создания новой страницы (страницы редактирования)
-            .then(() => this.iframe.load("../temp.html"))    // загрузка страницы редактирования
+            .then(() => this.iframe.load("../ytytyr33345_12ee.html"))   // загрузка страницы редактирования
+            .then(() => axios.post('./api/deleteTempPage.php'))
             .then(() => this.enableEditing()) // включение редактирования и синхронизация с готовой страницей
             .then(() => this.injectStyles())
             .then(cb)
@@ -103,7 +109,7 @@ export default class Editor extends Component {
 
     loadPageList() {
         axios
-            .get("/api")
+            .get("./api/pageList.php")
             .then(res => this.setState({pageList: res.data})) // список страниц
     }
 
@@ -122,7 +128,7 @@ export default class Editor extends Component {
     }
 
     render() {
-        const loading = this.state.loading;
+        const {loading, pageList} = this.state;
         const modal = true;
         
         let spinner;
@@ -141,7 +147,7 @@ export default class Editor extends Component {
                 </div>
 
                 <ConfirmModal modal={modal} target={'modal-save'} method={this.save} />
-                <ChooseModal modal={modal} target={'modal-open'} />
+                <ChooseModal modal={modal} target={'modal-open'} data={pageList} redirect={this.init}/>
             </>
         )
     }
